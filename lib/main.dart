@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'screens/login_screen.dart';
+import 'screens/responsive_layout_selector.dart';
 import 'theme.dart';
 
 void main() async {
@@ -23,7 +23,7 @@ class MiApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Origen Vivo',
       theme: OrigenVivoTheme.lightTheme,
-      home: LoginScreen(), 
+      home: const ResponsiveLayoutSelector(), 
     );
   }
 }
