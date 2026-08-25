@@ -325,6 +325,7 @@ class _CafeMenuScreenState extends State<CafeMenuScreen> {
   }
 
   void _verCarrito() {
+    bool cargandoCheckout = false;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
@@ -365,11 +366,13 @@ class _CafeMenuScreenState extends State<CafeMenuScreen> {
                             subtitle: Text('Cantidad: ${item['cantidad']} x \$${item['precio']}'),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () {
-                                _orderService.quitarDelCarritoCafe(item['nombre']);
-                                setModalState(() {});
-                                setState(() {});
-                              },
+                              onPressed: cargandoCheckout
+                                  ? null
+                                  : () {
+                                      _orderService.quitarDelCarritoCafe(item['nombre']);
+                                      setModalState(() {});
+                                      setState(() {});
+                                    },
                             ),
                           );
                         },
@@ -385,24 +388,56 @@ class _CafeMenuScreenState extends State<CafeMenuScreen> {
                     ),
                     const SizedBox(height: 20),
                     ElevatedButton(
-                      onPressed: () {
-                        _orderService.realizarCheckoutCafe();
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('¡Pedido de café registrado con éxito! Visita "Mis Pedidos".'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                        setState(() {});
-                      },
+                      onPressed: cargandoCheckout
+                          ? null
+                          : () async {
+                              setModalState(() {
+                                cargandoCheckout = true;
+                              });
+                              try {
+                                await _orderService.realizarCheckoutCafe();
+                                if (!context.mounted) return;
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('¡Pedido de café registrado con éxito! Visita "Mis Pedidos".'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error al realizar el pedido: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) {
+                                  setModalState(() {
+                                    cargandoCheckout = false;
+                                  });
+                                  setState(() {});
+                                }
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0E3821),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: const Text('Realizar Pedido', style: TextStyle(fontSize: 16)),
+                      child: cargandoCheckout
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Realizar Pedido', style: TextStyle(fontSize: 16)),
                     ),
                   ],
                   const SizedBox(height: 10),

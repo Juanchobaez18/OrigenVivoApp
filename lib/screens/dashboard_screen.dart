@@ -6,9 +6,9 @@ import '../order_service.dart';
 import '../supabase_client.dart';
 import 'collections_screen.dart';
 import 'cafe_menu_screen.dart';
-import 'login_screen.dart';
 import 'sublimable_catalog_screen.dart';
 import 'order_tracking_screen.dart';
+import 'responsive_layout_selector.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String email;
@@ -75,7 +75,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(builder: (context) => const ResponsiveLayoutSelector()),
         (route) => false,
       );
     }

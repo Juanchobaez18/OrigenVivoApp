@@ -110,7 +110,7 @@ class OrderService {
   }
 
   // Registrar pedido de Sublimación en la Base de Datos
-  Future<void> registrarPedidoSublimacion({
+  Future<OrderItem?> registrarPedidoSublimacion({
     required String producto,
     required String diseno,
     required double precio,
@@ -129,19 +129,40 @@ class OrderService {
       });
 
       // 2. Insertar en detalles del pedido
-      await supabase.from('pedido_detalles').insert({
+      final responseDetalle = await supabase.from('pedido_detalles').insert({
         'pedido_id': pedidoId,
         'nombre_producto': producto,
         'detalle_personalizacion': diseno,
         'cantidad': 1,
         'precio_unitario': precio,
-      });
+      }).select();
 
       // 3. Sincronizar UI cargando de Supabase
       await cargarPedidosDesdeDB();
+
+      if (responseDetalle.isNotEmpty) {
+        final insertedRow = responseDetalle.first;
+        final detailId = insertedRow['id'].toString();
+        
+        final match = _pedidos.firstWhere(
+          (p) => p.id == detailId,
+          orElse: () => OrderItem(
+            id: detailId,
+            tipo: 'Sublimación',
+            nombre: producto,
+            detalle: diseno,
+            cantidad: 1,
+            precio: precio,
+            fecha: DateTime.now(),
+            estado: 'Pendiente',
+          ),
+        );
+        return match;
+      }
     } catch (e) {
       debugPrint('Error al registrar pedido de sublimación: $e');
     }
+    return null;
   }
 
   // Registrar pedido de Café en la Base de Datos (Checkout)

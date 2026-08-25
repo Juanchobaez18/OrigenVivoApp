@@ -203,12 +203,14 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
                   end: Alignment.bottomRight,
                 ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(64.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(64.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                     Center(
                       child: Container(
                         padding: const EdgeInsets.all(24),
@@ -247,6 +249,7 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
               ),
             ),
           ),
+        ),
           
           // LADO DERECHO: Formulario de Login centrado
           Expanded(

@@ -3,9 +3,9 @@ import '../../order_service.dart';
 import '../../supabase_client.dart';
 import '../collections_screen.dart';
 import '../cafe_menu_screen.dart';
-import '../login_screen.dart';
 import '../sublimable_catalog_screen.dart';
 import '../order_tracking_screen.dart';
+import '../responsive_layout_selector.dart';
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -75,7 +75,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(builder: (context) => const ResponsiveLayoutSelector()),
         (route) => false,
       );
     }

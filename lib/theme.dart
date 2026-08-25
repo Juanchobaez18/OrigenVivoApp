@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 // Constantes visuales de la marca Origen Vivo
 class OrigenVivoColors {
-  static const Color verdePrimario = Color(0xFF0D2818);
-  static const Color doradoAcento = Color(0xFFB8863B);
+  static const Color verdePrimario = Color.fromARGB(255, 80, 114, 29);
+  static const Color doradoAcento = Color.fromARGB(255, 197, 135, 42);
   static const Color cremaFondo = Color(0xFFF5EDE3);
   static const Color blancoTarjeta = Colors.white;
 

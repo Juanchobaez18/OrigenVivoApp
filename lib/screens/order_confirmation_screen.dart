@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../order_service.dart';
 import 'order_tracking_screen.dart';
 
-class OrderConfirmationScreen extends StatelessWidget {
+class OrderConfirmationScreen extends StatefulWidget {
   final String productoSeleccionado;
   final String disenoSeleccionado;
   final String coleccion;
@@ -23,9 +23,16 @@ class OrderConfirmationScreen extends StatelessWidget {
   });
 
   @override
+  State<OrderConfirmationScreen> createState() => _OrderConfirmationScreenState();
+}
+
+class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
+  bool _cargando = false;
+
+  @override
   Widget build(BuildContext context) {
     // Calcular el precio
-    final String prodLower = productoSeleccionado.toLowerCase();
+    final String prodLower = widget.productoSeleccionado.toLowerCase();
     final double precio = (prodLower.contains('buso') || prodLower.contains('camiseta') || prodLower.contains('oversize'))
         ? 45000.0
         : 25000.0;
@@ -105,11 +112,11 @@ class OrderConfirmationScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildSummaryItem('Producto:', productoSeleccionado),
+                  _buildSummaryItem('Producto:', widget.productoSeleccionado),
                   const SizedBox(height: 10),
-                  _buildSummaryItem('Diseño / Plantilla:', '$disenoSeleccionado ($coleccion)'),
+                  _buildSummaryItem('Diseño / Plantilla:', '${widget.disenoSeleccionado} (${widget.coleccion})'),
                   const SizedBox(height: 10),
-                  _buildSummaryItem('Texto Adicional:', textoPersonalizado.isEmpty ? 'Sin texto' : textoPersonalizado),
+                  _buildSummaryItem('Texto Adicional:', widget.textoPersonalizado.isEmpty ? 'Sin texto' : widget.textoPersonalizado),
                   const SizedBox(height: 10),
                   _buildSummaryItem('Tipo de Pedido:', 'Sublimación Personalizada'),
                   const Divider(height: 32, color: Color(0xFF3E3D3C)),
@@ -164,31 +171,55 @@ class OrderConfirmationScreen extends StatelessWidget {
 
             // Botón de confirmación final
             ElevatedButton(
-              onPressed: () {
-                // Registrar en memoria
-                final detallePedido = '$disenoSeleccionado ($coleccion)${textoPersonalizado.isNotEmpty ? " - Texto: \"$textoPersonalizado\"" : ""}';
-                
-                OrderService().registrarPedidoSublimacion(
-                  producto: productoSeleccionado,
-                  diseno: detallePedido,
-                  precio: precio,
-                );
+              onPressed: _cargando
+                  ? null
+                  : () async {
+                      setState(() => _cargando = true);
+                      try {
+                        final detallePedido = '${widget.disenoSeleccionado} (${widget.coleccion})${widget.textoPersonalizado.isNotEmpty ? " - Texto: \"${widget.textoPersonalizado}\"" : ""}';
+                        
+                        final nuevoPedido = await OrderService().registrarPedidoSublimacion(
+                          producto: widget.productoSeleccionado,
+                          diseno: detallePedido,
+                          precio: precio,
+                        );
 
-                // Obtener el ID del pedido recién creado
-                final pedidos = OrderService().pedidos;
-                final ultimoPedido = pedidos.last;
+                        if (!context.mounted) return;
 
-                // Navegar a Seguimiento de Pedido
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => OrderTrackingScreen(
-                      pedido: ultimoPedido,
-                    ),
-                  ),
-                  (route) => route.isFirst,
-                );
-              },
+                        if (nuevoPedido != null) {
+                          // Navegar a Seguimiento de Pedido
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => OrderTrackingScreen(
+                                pedido: nuevoPedido,
+                              ),
+                            ),
+                            (route) => route.isFirst,
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Error al crear el pedido. Inténtalo de nuevo.'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() => _cargando = false);
+                        }
+                      }
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFA26334),
                 foregroundColor: Colors.white,
@@ -197,10 +228,19 @@ class OrderConfirmationScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(18),
                 ),
               ),
-              child: const Text(
-                'Confirmar y Enviar Pedido',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              child: _cargando
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text(
+                      'Confirmar y Enviar Pedido',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
             ),
             const SizedBox(height: 24),
           ],
