@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import '../supabase_client.dart';
 import 'designs_screen.dart';
 
 class CollectionItem {
+  final int id;
   final String nombre;
   final String disenosCount;
   final IconData icono;
   final Color colorIcono;
 
   CollectionItem({
+    required this.id,
     required this.nombre,
     required this.disenosCount,
     required this.icono,
@@ -15,9 +18,9 @@ class CollectionItem {
   });
 }
 
-class CollectionsScreen extends StatelessWidget {
+class CollectionsScreen extends StatefulWidget {
   final String? productoSeleccionado;
-  final bool isEmbedded; // True if shown inside the dashboard tab bar directly
+  final bool isEmbedded;
 
   const CollectionsScreen({
     super.key,
@@ -26,57 +29,107 @@ class CollectionsScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // List of collections matching Page 6 of the PDF
-    final List<CollectionItem> colecciones = [
-      CollectionItem(
-        nombre: 'Boyacá',
-        disenosCount: '24 diseños',
-        icono: Icons.landscape,
-        colorIcono: Colors.green.shade700,
-      ),
-      CollectionItem(
-        nombre: 'Café',
-        disenosCount: '18 diseños',
-        icono: Icons.coffee,
-        colorIcono: const Color(0xFF8B5E34),
-      ),
-      CollectionItem(
-        nombre: 'Amor',
-        disenosCount: '20 diseños',
-        icono: Icons.favorite,
-        colorIcono: Colors.red.shade400,
-      ),
-      CollectionItem(
-        nombre: 'Mascotas',
-        disenosCount: '16 diseños',
-        icono: Icons.pets,
-        colorIcono: Colors.brown.shade600,
-      ),
-      CollectionItem(
-        nombre: 'Infantil',
-        disenosCount: '22 diseños',
-        icono: Icons.child_friendly,
-        colorIcono: Colors.orange.shade400,
-      ),
-      CollectionItem(
-        nombre: 'Empresas',
-        disenosCount: '15 diseños',
-        icono: Icons.business,
-        colorIcono: Colors.blue.shade700,
-      ),
-      CollectionItem(
-        nombre: 'Temporadas',
-        disenosCount: '28 diseños',
-        icono: Icons.celebration,
-        colorIcono: Colors.teal,
-      ),
-    ];
+  State<CollectionsScreen> createState() => _CollectionsScreenState();
+}
 
+class _CollectionsScreenState extends State<CollectionsScreen> {
+  List<CollectionItem> _colecciones = [];
+  bool _cargando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarColeccionesDeDb();
+  }
+
+  IconData _getIconData(String nombre) {
+    final n = nombre.toLowerCase().trim();
+    if (n == 'boyacá' || n == 'boyaca') return Icons.landscape;
+    if (n == 'café' || n == 'cafe') return Icons.coffee;
+    if (n == 'amor') return Icons.favorite;
+    if (n == 'mascotas') return Icons.pets;
+    if (n == 'infantil') return Icons.child_friendly;
+    if (n == 'empresas') return Icons.business;
+    if (n == 'temporadas') return Icons.celebration;
+    return Icons.collections;
+  }
+
+  Color _getColorIcono(String nombre) {
+    final n = nombre.toLowerCase().trim();
+    if (n == 'boyacá' || n == 'boyaca') return Colors.green.shade700;
+    if (n == 'café' || n == 'cafe') return const Color(0xFF8B5E34);
+    if (n == 'amor') return Colors.red.shade400;
+    if (n == 'mascotas') return Colors.brown.shade600;
+    if (n == 'infantil') return Colors.orange.shade400;
+    if (n == 'empresas') return Colors.blue.shade700;
+    if (n == 'temporadas') return Colors.teal;
+    return Colors.purple.shade600;
+  }
+
+  Future<void> _cargarColeccionesDeDb() async {
+    try {
+      final List<dynamic> cols = await supabase.from('colecciones').select().order('nombre');
+      
+      if (cols.isNotEmpty) {
+        final List<CollectionItem> dbColecciones = [];
+        for (final col in cols) {
+          final int id = col['id'] as int;
+          final String nombre = col['nombre'] as String;
+
+          // Contar cuántos diseños tiene la colección
+          final designsCountResponse = await supabase
+              .from('disenos')
+              .select('id')
+              .eq('coleccion_id', id);
+
+          final int count = designsCountResponse.length;
+
+          dbColecciones.add(
+            CollectionItem(
+              id: id,
+              nombre: nombre,
+              disenosCount: '$count diseño${count == 1 ? "" : "s"}',
+              icono: _getIconData(nombre),
+              colorIcono: _getColorIcono(nombre),
+            ),
+          );
+        }
+
+        if (mounted) {
+          setState(() {
+            _colecciones = dbColecciones;
+            _cargando = false;
+          });
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Error al cargar colecciones de Supabase: $e');
+    }
+
+    // Fallback: Si falla o está vacío
+    if (mounted) {
+      setState(() {
+        _colecciones = [
+          CollectionItem(id: 1, nombre: 'Boyacá', disenosCount: '2 diseños', icono: Icons.landscape, colorIcono: Colors.green.shade700),
+          CollectionItem(id: 2, nombre: 'Café', disenosCount: '2 diseños', icono: Icons.coffee, colorIcono: const Color(0xFF8B5E34)),
+          CollectionItem(id: 3, nombre: 'Amor', disenosCount: '1 diseño', icono: Icons.favorite, colorIcono: Colors.red.shade400),
+          CollectionItem(id: 4, nombre: 'Mascotas', disenosCount: '1 diseño', icono: Icons.pets, colorIcono: Colors.brown.shade600),
+          CollectionItem(id: 5, nombre: 'Infantil', disenosCount: '1 diseño', icono: Icons.child_friendly, colorIcono: Colors.orange.shade400),
+          CollectionItem(id: 6, nombre: 'Empresas', disenosCount: '1 diseño', icono: Icons.business, colorIcono: Colors.blue.shade700),
+          CollectionItem(id: 7, nombre: 'Temporadas', disenosCount: '1 diseño', icono: Icons.celebration, colorIcono: Colors.teal),
+        ];
+        _cargando = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     Widget body = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (productoSeleccionado != null)
+        if (widget.productoSeleccionado != null)
           Padding(
             padding: const EdgeInsets.only(left: 16, right: 16, top: 10, bottom: 4),
             child: Container(
@@ -86,7 +139,7 @@ class CollectionsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                'Personalizando: $productoSeleccionado',
+                'Personalizando: ${widget.productoSeleccionado}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
@@ -112,7 +165,7 @@ class CollectionsScreen extends StatelessWidget {
               ),
               SizedBox(height: 6),
               Text(
-                'Elige una coleccion y descubre diseños exclusivos',
+                'Elige una colección y descubre diseños exclusivos',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
@@ -123,78 +176,79 @@ class CollectionsScreen extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: colecciones.length,
-            itemBuilder: (context, index) {
-              final col = colecciones[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                elevation: 1.5,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                color: const Color(0xFFFBF9F6),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  leading: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: col.colorIcono.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      col.icono,
-                      color: col.colorIcono,
-                      size: 28,
-                    ),
-                  ),
-                  title: Text(
-                    col.nombre,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF3E2723),
-                    ),
-                  ),
-                  subtitle: Text(
-                    col.disenosCount,
-                    style: const TextStyle(color: Colors.black45),
-                  ),
-                  trailing: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFAF6F0),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    padding: const EdgeInsets.all(8),
-                    child: const Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: Color(0xFF8B5E34),
-                    ),
-                  ),
-                  onTap: () {
-                    // Navigate to designs screen for the chosen collection
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DesignsScreen(
-                          coleccion: col.nombre,
-                          productoSeleccionado: productoSeleccionado,
+          child: _cargando
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF0E3821)))
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: _colecciones.length,
+                  itemBuilder: (context, index) {
+                    final col = _colecciones[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 1.5,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      color: const Color(0xFFFBF9F6),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        leading: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: col.colorIcono.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            col.icono,
+                            color: col.colorIcono,
+                            size: 28,
+                          ),
                         ),
+                        title: Text(
+                          col.nombre,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF3E2723),
+                          ),
+                        ),
+                        subtitle: Text(
+                          col.disenosCount,
+                          style: const TextStyle(color: Colors.black45),
+                        ),
+                        trailing: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFAF6F0),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          child: const Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: Color(0xFF8B5E34),
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => DesignsScreen(
+                                coleccion: col.nombre,
+                                productoSeleccionado: widget.productoSeleccionado,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     );
                   },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
 
-    if (isEmbedded) {
+    if (widget.isEmbedded) {
       return body;
     }
 

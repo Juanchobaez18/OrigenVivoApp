@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../order_service.dart';
-import '../supabase_client.dart';
+import 'product_management_screen.dart';
+
+enum AdminView { orders, stats }
 
 class AdminPanelScreen extends StatefulWidget {
   final String email;
@@ -19,6 +22,7 @@ class AdminPanelScreen extends StatefulWidget {
 class _AdminPanelScreenState extends State<AdminPanelScreen> {
   final OrderService _orderService = OrderService();
   String _filtroEstado = 'Todos';
+  AdminView _currentView = AdminView.orders;
 
   @override
   void initState() {
@@ -37,16 +41,269 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     if (mounted) setState(() {});
   }
 
+  // --- GRÁFICOS ESTADÍSTICOS CON FL_CHART ---
+
+  Widget _buildLineChart(List<OrderItem> pedidos) {
+    // Ventas de los últimos 7 días
+    final hoy = DateTime.now();
+    final List<double> ventasSemana = List.filled(7, 0.0);
+    final List<String> nombresDias = [];
+
+    for (int i = 6; i >= 0; i--) {
+      final dia = hoy.subtract(Duration(days: i));
+      nombresDias.add('${dia.day}/${dia.month}');
+      
+      final double totalDia = pedidos
+          .where((p) => (p.estado == 'Entregado' || p.estado == 'Completado') &&
+                        p.fecha.year == dia.year &&
+                        p.fecha.month == dia.month &&
+                        p.fecha.day == dia.day)
+          .fold(0.0, (sum, p) => sum + (p.precio * p.cantidad));
+      ventasSemana[6 - i] = totalDia;
+    }
+
+    return Card(
+      color: Colors.white,
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(18.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Recaudación Semanal (Últimos 7 Días)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0D2818)),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  gridData: const FlGridData(show: false),
+                  titlesData: FlTitlesData(
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (val, meta) {
+                          final idx = val.toInt();
+                          if (idx >= 0 && idx < nombresDias.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 6.0),
+                              child: Text(nombresDias[idx], style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
+                            );
+                          }
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: List.generate(7, (i) => FlSpot(i.toDouble(), ventasSemana[i])),
+                      isCurved: true,
+                      color: const Color(0xFFB8863B),
+                      barWidth: 4,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: const Color(0xFFB8863B).withValues(alpha: 0.15),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarChart(List<OrderItem> pedidos) {
+    // Horas de mayor consumo: 8, 10, 12, 14, 16, 18
+    final List<int> horas = [8, 10, 12, 14, 16, 18];
+    final List<double> recuentoPorHora = List.filled(6, 0.0);
+
+    for (final p in pedidos) {
+      if (p.tipo != 'Sublimación') {
+        final hora = p.fecha.hour;
+        if (hora >= 7 && hora < 9) {
+          recuentoPorHora[0] += p.cantidad;
+        } else if (hora >= 9 && hora < 11) {
+          recuentoPorHora[1] += p.cantidad;
+        } else if (hora >= 11 && hora < 13) {
+          recuentoPorHora[2] += p.cantidad;
+        } else if (hora >= 13 && hora < 15) {
+          recuentoPorHora[3] += p.cantidad;
+        } else if (hora >= 15 && hora < 17) {
+          recuentoPorHora[4] += p.cantidad;
+        } else if (hora >= 17 && hora <= 19) {
+          recuentoPorHora[5] += p.cantidad;
+        }
+      }
+    }
+
+    return Card(
+      color: Colors.white,
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(18.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cafetería: Unidades por Horario',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0D2818)),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 180,
+              child: BarChart(
+                BarChartData(
+                  gridData: const FlGridData(show: false),
+                  titlesData: FlTitlesData(
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (val, meta) {
+                          final idx = val.toInt();
+                          if (idx >= 0 && idx < horas.length) {
+                            return Text('${horas[idx]}h', style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold));
+                          }
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  barGroups: List.generate(6, (i) {
+                    return BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          toY: recuentoPorHora[i],
+                          color: const Color(0xFF0D2818),
+                          width: 16,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPieChart(List<OrderItem> pedidos) {
+    int totalCafe = 0;
+    int totalSublimados = 0;
+
+    for (final p in pedidos) {
+      if (p.tipo == 'Sublimación') {
+        totalSublimados += p.cantidad;
+      } else {
+        totalCafe += p.cantidad;
+      }
+    }
+
+    final double total = (totalCafe + totalSublimados).toDouble();
+    final double pctCafe = total > 0 ? (totalCafe / total * 100) : 50.0;
+    final double pctSub = total > 0 ? (totalSublimados / total * 100) : 50.0;
+
+    return Card(
+      color: Colors.white,
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(18.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Distribución de Items Vendidos',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0D2818)),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 140,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 3,
+                        centerSpaceRadius: 30,
+                        sections: [
+                          PieChartSectionData(
+                            value: pctCafe,
+                            title: '${pctCafe.toStringAsFixed(0)}%',
+                            color: const Color(0xFF8B5E34),
+                            radius: 35,
+                            titleStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 11),
+                          ),
+                          PieChartSectionData(
+                            value: pctSub,
+                            title: '${pctSub.toStringAsFixed(0)}%',
+                            color: const Color(0xFF0D2818),
+                            radius: 35,
+                            titleStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLegendItem('Cafetería', const Color(0xFF8B5E34)),
+                    const SizedBox(height: 8),
+                    _buildLegendItem('Sublimación', const Color(0xFF0D2818)),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final todosLosPedidos = _orderService.pedidos;
 
-    // Si es del departamento de producción, solo visualiza pedidos de Sublimación
     final pedidos = widget.role == 'produccion'
         ? todosLosPedidos.where((p) => p.tipo == 'Sublimación').toList()
         : todosLosPedidos;
 
-    // Calcular estadísticas
+    // Calcular estadísticas principales
     final double totalVentas = pedidos
         .where((p) => p.estado == 'Entregado' || p.estado == 'Completado')
         .fold(0, (sum, p) => sum + (p.precio * p.cantidad));
@@ -54,12 +311,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     final int enProduccion = pedidos.where((p) => p.estado == 'En producción').length;
     final int listoParaEntrega = pedidos.where((p) => p.estado == 'Listo para entrega').length;
 
-    // Filtrar pedidos por estado seleccionado
     final pedidosFiltrados = _filtroEstado == 'Todos'
         ? pedidos
         : pedidos.where((p) => p.estado == _filtroEstado).toList();
 
-    // Título y subtítulo por rol
     String titleText = 'Panel de Control';
     String subtitleText = 'Origen Vivo';
     if (widget.role == 'produccion') {
@@ -95,9 +350,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         actions: [
           if (widget.role == 'admin')
             IconButton(
-              icon: const Icon(Icons.add_box_outlined, color: Color(0xFFB8863B)),
-              tooltip: 'Crear Producto',
-              onPressed: () => _abrirFormularioCrearProducto(context),
+              icon: const Icon(Icons.inventory_2_outlined, color: Color(0xFFB8863B)),
+              tooltip: 'Gestionar Catálogo',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProductManagementScreen(),
+                  ),
+                );
+              },
             ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Color(0xFFB8863B)),
@@ -115,278 +377,359 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Sección de métricas/resumen con fondo verde primario de la marca
+          // Sección de métricas/resumen con fondo verde
           Container(
             color: const Color(0xFF0D2818),
-            padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24, top: 10),
+            padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 10),
             child: Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatCard('Ventas Realizadas', '\$${totalVentas.toStringAsFixed(0)}', Colors.white.withValues(alpha: 0.08)),
-                    _buildStatCard('Pendientes', '$pendientes', const Color(0xFFB8863B).withValues(alpha: 0.2)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatCard('En Taller', '$enProduccion', Colors.blue.withValues(alpha: 0.2)),
-                    _buildStatCard('Listos', '$listoParaEntrega', Colors.green.withValues(alpha: 0.2)),
-                  ],
-                ),
+                if (widget.role == 'produccion')
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildStatCard('Cola de Trabajo', '$pendientes', const Color(0xFFB8863B).withValues(alpha: 0.2)),
+                      _buildStatCard('En Taller', '$enProduccion', Colors.blue.withValues(alpha: 0.2)),
+                    ],
+                  )
+                else if (widget.role == 'caja')
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildStatCard('Ventas Realizadas', '\$${totalVentas.toStringAsFixed(0)}', Colors.white.withValues(alpha: 0.08)),
+                      _buildStatCard('Por Entregar', '$listoParaEntrega', Colors.green.withValues(alpha: 0.2)),
+                    ],
+                  )
+                else ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildStatCard('Ventas Realizadas', '\$${totalVentas.toStringAsFixed(0)}', Colors.white.withValues(alpha: 0.08)),
+                      _buildStatCard('Pendientes', '$pendientes', const Color(0xFFB8863B).withValues(alpha: 0.2)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildStatCard('En Taller', '$enProduccion', Colors.blue.withValues(alpha: 0.2)),
+                      _buildStatCard('Listos', '$listoParaEntrega', Colors.green.withValues(alpha: 0.2)),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
 
-          // Filtros de estado de pedido
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+          // Selector de Vista (Pedidos vs Estadísticas)
+          if (widget.role == 'admin')
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
-                children: ['Todos', 'Pendiente', 'Confirmado', 'En producción', 'Control de calidad', 'Listo para entrega', 'Entregado', 'Cancelado'].map((estado) {
-                  final esSeleccionado = _filtroEstado == estado;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
+                children: [
+                  Expanded(
                     child: ChoiceChip(
-                      label: Text(
-                        estado,
-                        style: TextStyle(
-                          color: esSeleccionado ? Colors.white : const Color(0xFF0D2818),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      selected: esSeleccionado,
+                      label: const Center(child: Text('Lista de Pedidos')),
+                      selected: _currentView == AdminView.orders,
+                      onSelected: (val) => setState(() => _currentView = AdminView.orders),
                       selectedColor: const Color(0xFF0D2818),
-                      backgroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: const BorderSide(color: Color(0xFFE2D6C5)),
+                      labelStyle: TextStyle(
+                        color: _currentView == AdminView.orders ? Colors.white : const Color(0xFF0D2818),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
                       ),
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => _filtroEstado = estado);
-                        }
-                      },
                     ),
-                  );
-                }).toList(),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ChoiceChip(
+                      label: const Center(child: Text('Estadísticas')),
+                      selected: _currentView == AdminView.stats,
+                      onSelected: (val) => setState(() => _currentView = AdminView.stats),
+                      selectedColor: const Color(0xFF0D2818),
+                      labelStyle: TextStyle(
+                        color: _currentView == AdminView.stats ? Colors.white : const Color(0xFF0D2818),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
 
-          // Listado de pedidos
+          // Contenido principal dinámico
           Expanded(
-            child: pedidosFiltrados.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.inbox, size: 64, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text(
-                          'No hay pedidos en esta categoría',
-                          style: TextStyle(color: Color(0xFF0D2818), fontSize: 16),
-                        ),
-                      ],
-                    ),
+            child: _currentView == AdminView.stats && widget.role == 'admin'
+                ? ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _buildLineChart(pedidos),
+                      const SizedBox(height: 16),
+                      _buildBarChart(pedidos),
+                      const SizedBox(height: 16),
+                      _buildPieChart(pedidos),
+                      const SizedBox(height: 24),
+                    ],
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: pedidosFiltrados.length,
-                    itemBuilder: (context, index) {
-                      final pedido = pedidosFiltrados[index];
-                      final esSublimacion = pedido.tipo == 'Sublimación';
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        elevation: 2,
-                        color: Colors.white,
-                        shadowColor: Colors.black.withValues(alpha: 0.04),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF5EDE3),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: const Color(0xFFE2D6C5)),
-                                    ),
-                                    child: Text(
-                                      pedido.id,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF0D2818),
-                                      ),
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Filtros de estado de pedido
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: ['Todos', 'Pendiente', 'Confirmado', 'En producción', 'Listo para entrega', 'Entregado', 'Cancelado'].map((estado) {
+                              final esSeleccionado = _filtroEstado == estado;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text(
+                                    estado,
+                                    style: TextStyle(
+                                      color: esSeleccionado ? Colors.white : const Color(0xFF0D2818),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
                                     ),
                                   ),
-                                  _buildBadgeEstado(pedido.estado),
-                                ],
-                              ),
-                              const Divider(height: 20, color: Color(0xFFE2D6C5)),
-                              
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFF5EDE3),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      esSublimacion ? Icons.palette : Icons.local_cafe,
-                                      color: const Color(0xFF0D2818),
-                                    ),
+                                  selected: esSeleccionado,
+                                  selectedColor: const Color(0xFF0D2818),
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                    side: const BorderSide(color: Color(0xFFE2D6C5)),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          pedido.nombre,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF0D2818),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          pedido.detalle,
-                                          style: const TextStyle(fontSize: 13, color: Color(0xFF4A5D4C)),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Cantidad: ${pedido.cantidad}  |  Precio Unitario: \$${pedido.precio.toStringAsFixed(0)}',
-                                          style: const TextStyle(fontSize: 11, color: Color(0xFF4A5D4C)),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-
-                              // Acciones de administración basadas en Rol
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  // Botón Descargar para producción
-                                  if (esSublimacion && (widget.role == 'produccion' || widget.role == 'admin'))
-                                    TextButton.icon(
-                                      onPressed: () => _simularDescargarDiseno(context, pedido),
-                                      icon: const Icon(Icons.download, size: 16, color: Color(0xFFB8863B)),
-                                      label: const Text('Descargar Diseño', style: TextStyle(color: Color(0xFFB8863B), fontSize: 12, fontWeight: FontWeight.bold)),
-                                    )
-                                  else
-                                    const SizedBox(),
-
-                                  Row(
-                                    children: [
-                                      // Flujo para Rol CAJA o ADMIN
-                                      if (widget.role == 'caja' || widget.role == 'admin') ...[
-                                        if (pedido.estado == 'Pendiente')
-                                          ElevatedButton.icon(
-                                            onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'Confirmado'),
-                                            icon: const Icon(Icons.check, size: 16),
-                                            label: const Text('Confirmar Pedido', style: TextStyle(fontSize: 12)),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFF0D2818),
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                          ),
-                                        if (pedido.estado == 'Confirmado')
-                                          ElevatedButton.icon(
-                                            onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'En producción'),
-                                            icon: const Icon(Icons.payment, size: 16),
-                                            label: const Text('Validar Pago', style: TextStyle(fontSize: 12)),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFFB8863B),
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                          ),
-                                        if (pedido.estado == 'Listo para entrega')
-                                          ElevatedButton.icon(
-                                            onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'Entregado'),
-                                            icon: const Icon(Icons.delivery_dining, size: 16),
-                                            label: const Text('Entregar Producto', style: TextStyle(fontSize: 12)),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.green.shade700,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                          ),
-                                      ],
-
-                                      // Flujo para Rol PRODUCCION o ADMIN
-                                      if (widget.role == 'produccion' || widget.role == 'admin') ...[
-                                        if (pedido.estado == 'Confirmado' || (pedido.estado == 'Pendiente' && widget.role == 'produccion'))
-                                          ElevatedButton.icon(
-                                            onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'En producción'),
-                                            icon: const Icon(Icons.play_arrow, size: 16),
-                                            label: const Text('Iniciar Producción', style: TextStyle(fontSize: 12)),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.blue.shade700,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                          ),
-                                        if (pedido.estado == 'En producción')
-                                          ElevatedButton.icon(
-                                            onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'Control de calidad'),
-                                            icon: const Icon(Icons.fact_check, size: 16),
-                                            label: const Text('Control de Calidad', style: TextStyle(fontSize: 12)),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.orange.shade700,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                          ),
-                                        if (pedido.estado == 'Control de calidad')
-                                          ElevatedButton.icon(
-                                            onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'Listo para entrega'),
-                                            icon: const Icon(Icons.thumb_up, size: 16),
-                                            label: const Text('Listo para Entrega', style: TextStyle(fontSize: 12)),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.green.shade700,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                          ),
-                                      ],
-
-                                      // Botón Cancelar/Eliminar para admin o caja
-                                      if ((widget.role == 'admin' || widget.role == 'caja') && pedido.estado != 'Entregado' && pedido.estado != 'Cancelado') ...[
-                                        const SizedBox(width: 8),
-                                        IconButton(
-                                          onPressed: () => _confirmarEliminacion(context, pedido.id),
-                                          icon: const Icon(Icons.cancel_outlined, color: Colors.red),
-                                          tooltip: 'Cancelar Pedido',
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ],
-                              )
-                            ],
+                                  onSelected: (selected) {
+                                    if (selected) {
+                                      setState(() => _filtroEstado = estado);
+                                    }
+                                  },
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
-                      );
-                    },
+                      ),
+
+                      // Listado de tarjetas de pedido
+                      Expanded(
+                        child: pedidosFiltrados.isEmpty
+                            ? const Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.inbox, size: 64, color: Colors.grey),
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'No hay pedidos en esta categoría',
+                                      style: TextStyle(color: Color(0xFF0D2818), fontSize: 16),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: pedidosFiltrados.length,
+                                itemBuilder: (context, index) {
+                                  final pedido = pedidosFiltrados[index];
+                                  final esSublimacion = pedido.tipo == 'Sublimación';
+
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                    elevation: 2,
+                                    color: Colors.white,
+                                    shadowColor: Colors.black.withValues(alpha: 0.04),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF5EDE3),
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  border: Border.all(color: const Color(0xFFE2D6C5)),
+                                                ),
+                                                child: Text(
+                                                  pedido.id,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF0D2818),
+                                                  ),
+                                                ),
+                                              ),
+                                              _buildBadgeEstado(pedido.estado),
+                                            ],
+                                          ),
+                                          const Divider(height: 20, color: Color(0xFFE2D6C5)),
+                                          
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFFF5EDE3),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Icon(
+                                                  esSublimacion ? Icons.palette : Icons.local_cafe,
+                                                  color: const Color(0xFF0D2818),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      pedido.nombre,
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Color(0xFF0D2818),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      pedido.detalle,
+                                                      style: const TextStyle(fontSize: 13, color: Color(0xFF4A5D4C)),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'Cantidad: ${pedido.cantidad}  |  Precio Unitario: \$${pedido.precio.toStringAsFixed(0)}',
+                                                      style: const TextStyle(fontSize: 11, color: Color(0xFF4A5D4C)),
+                                                    ),
+                                                    if (pedido.clienteNombre != null || pedido.clienteEmail != null) ...[
+                                                      const SizedBox(height: 6),
+                                                      Row(
+                                                        children: [
+                                                          const Icon(Icons.person_outline, size: 12, color: Color(0xFFB8863B)),
+                                                          const SizedBox(width: 4),
+                                                          Expanded(
+                                                            child: Text(
+                                                              'Cliente: ${pedido.clienteNombre ?? ''} (${pedido.clienteEmail ?? 'Sin correo'})',
+                                                              style: const TextStyle(
+                                                                fontSize: 11,
+                                                                fontWeight: FontWeight.bold,
+                                                                color: Color(0xFFB8863B),
+                                                              ),
+                                                              overflow: TextOverflow.ellipsis,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 14),
+
+                                          // Acciones de administración basadas en Rol
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              if (esSublimacion && (widget.role == 'produccion' || widget.role == 'admin'))
+                                                TextButton.icon(
+                                                  onPressed: () => _simularDescargarDiseno(context, pedido),
+                                                  icon: const Icon(Icons.download, size: 16, color: Color(0xFFB8863B)),
+                                                  label: const Text('Descargar Diseño', style: TextStyle(color: Color(0xFFB8863B), fontSize: 12, fontWeight: FontWeight.bold)),
+                                                )
+                                              else
+                                                const SizedBox(),
+
+                                              Row(
+                                                children: [
+                                                  if (widget.role == 'caja' || widget.role == 'admin') ...[
+                                                    if (pedido.estado == 'Pendiente')
+                                                      ElevatedButton.icon(
+                                                        onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'Confirmado'),
+                                                        icon: const Icon(Icons.check, size: 16),
+                                                        label: const Text('Confirmar Pedido', style: TextStyle(fontSize: 12)),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: const Color(0xFF0D2818),
+                                                          foregroundColor: Colors.white,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                        ),
+                                                      ),
+                                                    if (pedido.estado == 'Confirmado')
+                                                      ElevatedButton.icon(
+                                                        onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'En producción'),
+                                                        icon: const Icon(Icons.payment, size: 16),
+                                                        label: const Text('Validar Pago', style: TextStyle(fontSize: 12)),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: const Color(0xFFB8863B),
+                                                          foregroundColor: Colors.white,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                        ),
+                                                      ),
+                                                    if (pedido.estado == 'Listo para entrega')
+                                                      ElevatedButton.icon(
+                                                        onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'Entregado'),
+                                                        icon: const Icon(Icons.delivery_dining, size: 16),
+                                                        label: const Text('Entregar Producto', style: TextStyle(fontSize: 12)),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: Colors.green.shade700,
+                                                          foregroundColor: Colors.white,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                        ),
+                                                      ),
+                                                  ],
+
+                                                  if (widget.role == 'produccion' || widget.role == 'admin') ...[
+                                                    if (pedido.estado == 'Confirmado' || (pedido.estado == 'Pendiente' && widget.role == 'produccion'))
+                                                      ElevatedButton.icon(
+                                                        onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'En producción'),
+                                                        icon: const Icon(Icons.play_arrow, size: 16),
+                                                        label: const Text('Iniciar Producción', style: TextStyle(fontSize: 12)),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: Colors.blue.shade700,
+                                                          foregroundColor: Colors.white,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                        ),
+                                                      ),
+                                                    if (pedido.estado == 'En producción')
+                                                      ElevatedButton.icon(
+                                                        onPressed: () => _orderService.actualizarEstadoPedido(pedido.id, 'Listo para entrega'),
+                                                        icon: const Icon(Icons.thumb_up, size: 16),
+                                                        label: const Text('Listo para Entrega', style: TextStyle(fontSize: 12)),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: Colors.green.shade700,
+                                                          foregroundColor: Colors.white,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                        ),
+                                                      ),
+                                                  ],
+
+                                                  if ((widget.role == 'admin' || widget.role == 'caja') && pedido.estado != 'Entregado' && pedido.estado != 'Cancelado') ...[
+                                                    const SizedBox(width: 8),
+                                                    IconButton(
+                                                      onPressed: () => _confirmarEliminacion(context, pedido.id),
+                                                      icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                                                      tooltip: 'Cancelar Pedido',
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
           ),
         ],
@@ -545,187 +888,4 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       },
     );
   }
-
-  void _abrirFormularioCrearProducto(BuildContext context) {
-    final formKey = GlobalKey<FormState>();
-    String tipoProducto = 'Café'; // 'Café' o 'Sublimable'
-    final TextEditingController nameCtrl = TextEditingController();
-    final TextEditingController descCtrl = TextEditingController();
-    final TextEditingController categoryCtrl = TextEditingController(text: 'Bebidas Calientes');
-    final TextEditingController priceCtrl = TextEditingController();
-    String selectedIcon = 'coffee';
-    bool guardando = false;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: const Color(0xFFFAF6F0),
-              title: const Text(
-                'Nuevo Producto',
-                style: TextStyle(color: Color(0xFF0E3821), fontWeight: FontWeight.bold),
-              ),
-              content: SingleChildScrollView(
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Tipo de Producto
-                      DropdownButtonFormField<String>(
-                        initialValue: tipoProducto,
-                        decoration: const InputDecoration(labelText: 'Tipo de Producto'),
-                        items: ['Café', 'Sublimable'].map((tipo) {
-                          return DropdownMenuItem(value: tipo, child: Text(tipo));
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() {
-                              tipoProducto = val;
-                              selectedIcon = val == 'Café' ? 'coffee' : 'checkroom';
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Nombre
-                      TextFormField(
-                        controller: nameCtrl,
-                        decoration: const InputDecoration(labelText: 'Nombre del Producto'),
-                        validator: (value) => value == null || value.trim().isEmpty ? 'Ingresa un nombre' : null,
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Descripción
-                      TextFormField(
-                        controller: descCtrl,
-                        decoration: const InputDecoration(labelText: 'Descripción'),
-                        validator: (value) => value == null || value.trim().isEmpty ? 'Ingresa una descripción' : null,
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Campos condicionales para Café
-                      if (tipoProducto == 'Café') ...[
-                        DropdownButtonFormField<String>(
-                          initialValue: categoryCtrl.text,
-                          decoration: const InputDecoration(labelText: 'Categoría'),
-                          items: ['Bebidas Calientes', 'Bebidas Frías', 'Alimentos'].map((cat) {
-                            return DropdownMenuItem(value: cat, child: Text(cat));
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setDialogState(() {
-                                categoryCtrl.text = val;
-                              });
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: priceCtrl,
-                          decoration: const InputDecoration(labelText: 'Precio (COP)'),
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) return 'Ingresa un precio';
-                            if (double.tryParse(value) == null) return 'Ingresa un número válido';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-
-                      // Selector de Icono
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedIcon,
-                        decoration: const InputDecoration(labelText: 'Icono Ilustrativo'),
-                        items: (tipoProducto == 'Café'
-                            ? ['coffee', 'coffee_maker', 'local_drink', 'bakery_dining', 'cake']
-                            : ['checkroom', 'checkroom_outlined', 'dry_cleaning', 'dry_cleaning_outlined', 'local_cafe', 'accessibility_new', 'child_care', 'opacity']
-                        ).map((iconKey) {
-                          return DropdownMenuItem(value: iconKey, child: Text(iconKey));
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() {
-                              selectedIcon = val;
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: guardando ? null : () => Navigator.pop(context),
-                  child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton(
-                  onPressed: guardando ? null : () async {
-                    if (!formKey.currentState!.validate()) return;
-
-                    setDialogState(() => guardando = true);
-
-                    try {
-                      if (tipoProducto == 'Café') {
-                        await supabase.from('productos_cafe').insert({
-                          'nombre': nameCtrl.text.trim(),
-                          'categoria': categoryCtrl.text,
-                          'descripcion': descCtrl.text.trim(),
-                          'precio': double.parse(priceCtrl.text.trim()),
-                          'icono_name': selectedIcon,
-                        });
-                      } else {
-                        await supabase.from('productos_sublimables').insert({
-                          'nombre': nameCtrl.text.trim(),
-                          'descripcion': descCtrl.text.trim(),
-                          'icono_name': selectedIcon,
-                        });
-                      }
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('¡Producto "$tipoProducto" creado exitosamente en Supabase!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    } catch (err) {
-                      setDialogState(() => guardando = false);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error al guardar el producto: $err'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0E3821),
-                    foregroundColor: Colors.white,
-                  ),
-                  child: guardando
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
-                        )
-                      : const Text('Guardar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 }
-

@@ -20,13 +20,13 @@ void main() {
   });
 
   testWidgets('Verifica renderizado de LoginScreen', (WidgetTester tester) async {
-    // Carga la aplicación en el árbol de widgets.
     await tester.pumpWidget(const MiApp());
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    // Verifica que se muestren los textos principales de la pantalla de login.
-    expect(find.text('Origen Vivo'), findsOneWidget);
-    expect(find.text('Café, amor y territorio'), findsOneWidget);
+    // Verifica que se muestren los elementos principales de la pantalla de login.
     expect(find.text('Iniciar Sesión'), findsOneWidget);
+    expect(find.text('Correo Electrónico'), findsOneWidget);
+    expect(find.text('Contraseña'), findsOneWidget);
+    expect(find.text('Accede a tu cuenta y empieza a disfrutar la experiencia.'), findsOneWidget);
   });
 }

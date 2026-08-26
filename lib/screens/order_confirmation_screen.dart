@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../order_service.dart';
 import 'order_tracking_screen.dart';
 
@@ -7,9 +9,21 @@ class OrderConfirmationScreen extends StatefulWidget {
   final String disenoSeleccionado;
   final String coleccion;
   final String textoPersonalizado;
+  final String? observacionesCliente;
   final Color colorTexto;
   final String fuenteTexto;
   final TextAlign alineacionTexto;
+
+  // --- PARÁMETROS DEL CANVAS ---
+  final String? customImageBase64;
+  final double textX;
+  final double textY;
+  final double textScale;
+  final double textRotation;
+  final double imageX;
+  final double imageY;
+  final double imageScale;
+  final double imageRotation;
 
   const OrderConfirmationScreen({
     super.key,
@@ -17,9 +31,19 @@ class OrderConfirmationScreen extends StatefulWidget {
     required this.disenoSeleccionado,
     required this.coleccion,
     required this.textoPersonalizado,
+    this.observacionesCliente,
     required this.colorTexto,
     required this.fuenteTexto,
     required this.alineacionTexto,
+    this.customImageBase64,
+    required this.textX,
+    required this.textY,
+    required this.textScale,
+    required this.textRotation,
+    required this.imageX,
+    required this.imageY,
+    required this.imageScale,
+    required this.imageRotation,
   });
 
   @override
@@ -31,7 +55,6 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Calcular el precio
     final String prodLower = widget.productoSeleccionado.toLowerCase();
     final double precio = (prodLower.contains('buso') || prodLower.contains('camiseta') || prodLower.contains('oversize'))
         ? 45000.0
@@ -116,9 +139,13 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                   const SizedBox(height: 10),
                   _buildSummaryItem('Diseño / Plantilla:', '${widget.disenoSeleccionado} (${widget.coleccion})'),
                   const SizedBox(height: 10),
+                  _buildSummaryItem('Imagen Personal:', widget.customImageBase64 != null ? 'Cargada por cliente' : 'Ninguna'),
+                  const SizedBox(height: 10),
                   _buildSummaryItem('Texto Adicional:', widget.textoPersonalizado.isEmpty ? 'Sin texto' : widget.textoPersonalizado),
                   const SizedBox(height: 10),
-                  _buildSummaryItem('Tipo de Pedido:', 'Sublimación Personalizada'),
+                  _buildSummaryItem('Observaciones:', widget.observacionesCliente == null || widget.observacionesCliente!.trim().isEmpty ? 'Ninguna' : widget.observacionesCliente!.trim()),
+                  const SizedBox(height: 10),
+                  _buildSummaryItem('Tipo de Pedido:', 'Sublimación Personalizada (Canvas 2D)'),
                   const Divider(height: 32, color: Color(0xFF3E3D3C)),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -176,8 +203,43 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                   : () async {
                       setState(() => _cargando = true);
                       try {
-                        final detallePedido = '${widget.disenoSeleccionado} (${widget.coleccion})${widget.textoPersonalizado.isNotEmpty ? " - Texto: \"${widget.textoPersonalizado}\"" : ""}';
-                        
+                        String detallePedido = '${widget.disenoSeleccionado} (${widget.coleccion})';
+                        if (widget.textoPersonalizado.isNotEmpty) {
+                          detallePedido += ' - Texto: "${widget.textoPersonalizado}"';
+                        }
+                        if (widget.observacionesCliente != null && widget.observacionesCliente!.trim().isNotEmpty) {
+                          detallePedido += ' - Obs: "${widget.observacionesCliente!.trim()}"';
+                        }
+
+                        // Subir imagen personalizada a Supabase Storage si se ha cargado una
+                        if (widget.customImageBase64 != null) {
+                          try {
+                            final String base64String = widget.customImageBase64!.split(',').last;
+                            final bytes = base64Decode(base64String);
+                            final String fileName = '${DateTime.now().millisecondsSinceEpoch}.png';
+                            final String filePath = '${Supabase.instance.client.auth.currentUser?.id ?? "anonymous"}/$fileName';
+
+                            // Subir archivo al bucket 'custom_designs'
+                            await Supabase.instance.client.storage.from('custom_designs').uploadBinary(
+                              filePath,
+                              bytes,
+                              fileOptions: const FileOptions(contentType: 'image/png'),
+                            );
+
+                            final String imageUrl = Supabase.instance.client.storage.from('custom_designs').getPublicUrl(filePath);
+                            detallePedido += ' - Imagen de producción: $imageUrl';
+                          } catch (e) {
+                            // Fallback de respaldo descriptivo
+                            detallePedido += ' - Imagen: [Cargada localmente por el cliente]';
+                          }
+                        }
+
+                        // Agregar coordenadas detalladas de maquetado en el registro de pedidos para producción
+                        detallePedido += ' | Layout: Texto(X:${widget.textX.toStringAsFixed(0)}, Y:${widget.textY.toStringAsFixed(0)}, Escala:${widget.textScale.toStringAsFixed(1)}, Rotación:${widget.textRotation.toStringAsFixed(2)})';
+                        if (widget.customImageBase64 != null) {
+                          detallePedido += ', Imagen(X:${widget.imageX.toStringAsFixed(0)}, Y:${widget.imageY.toStringAsFixed(0)}, Escala:${widget.imageScale.toStringAsFixed(1)}, Rotación:${widget.imageRotation.toStringAsFixed(2)})';
+                        }
+
                         final nuevoPedido = await OrderService().registrarPedidoSublimacion(
                           producto: widget.productoSeleccionado,
                           diseno: detallePedido,
@@ -187,7 +249,6 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                         if (!context.mounted) return;
 
                         if (nuevoPedido != null) {
-                          // Navegar a Seguimiento de Pedido
                           Navigator.pushAndRemoveUntil(
                             context,
                             MaterialPageRoute(

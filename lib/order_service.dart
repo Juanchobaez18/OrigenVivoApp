@@ -10,6 +10,8 @@ class OrderItem {
   final double precio;
   final DateTime fecha;
   String estado; // 'Pendiente', 'Preparando', 'Completado', 'Cancelado'
+  final String? clienteNombre;
+  final String? clienteEmail;
 
   OrderItem({
     required this.id,
@@ -20,6 +22,8 @@ class OrderItem {
     required this.precio,
     required this.fecha,
     this.estado = 'Pendiente',
+    this.clienteNombre,
+    this.clienteEmail,
   });
 }
 
@@ -29,8 +33,13 @@ class OrderService {
   factory OrderService() => _instance;
 
   OrderService._internal() {
-    // Carga inicial asíncrona de pedidos desde Supabase
-    cargarPedidosDesdeDB();
+    // Carga inicial asíncrona de pedidos desde Supabase e inicialización de datos
+    _inicializarApp();
+  }
+
+  Future<void> _inicializarApp() async {
+    await cargarPedidosDesdeDB();
+    await inicializarDatosPredeterminados();
   }
 
   final List<OrderItem> _pedidos = [];
@@ -54,17 +63,21 @@ class OrderService {
   List<OrderItem> get pedidos => List.unmodifiable(_pedidos);
   List<Map<String, dynamic>> get carritoCafe => List.unmodifiable(_carritoCafe);
 
-  // Cargar pedidos desde la Base de Datos de Supabase
+  // Cargar pedidos desde la Base de Datos de Supabase con información de perfiles
   Future<void> cargarPedidosDesdeDB() async {
     try {
       final response = await supabase
           .from('pedido_detalles')
-          .select('*, pedidos(*)');
+          .select('*, pedidos(*, perfiles(*))');
 
       final List<OrderItem> dbItems = [];
       for (final row in response) {
         final parent = row['pedidos'];
         if (parent == null) continue;
+        final perfil = parent['perfiles'];
+        final String? clNombre = perfil != null ? perfil['nombre'] as String? : null;
+        final String? clEmail = perfil != null ? perfil['email'] as String? : null;
+
         dbItems.add(
           OrderItem(
             id: row['id'].toString(),
@@ -75,6 +88,8 @@ class OrderService {
             precio: (row['precio_unitario'] as num? ?? 0.0).toDouble(),
             fecha: DateTime.tryParse(parent['fecha'] as String? ?? '') ?? DateTime.now(),
             estado: parent['estado'] as String? ?? 'Pendiente',
+            clienteNombre: clNombre,
+            clienteEmail: clEmail,
           ),
         );
       }
@@ -165,8 +180,7 @@ class OrderService {
     return null;
   }
 
-  // Registrar pedido de Café en la Base de Datos (Checkout)
-  Future<void> realizarCheckoutCafe() async {
+  Future<void> realizarCheckoutCafe([String? observaciones]) async {
     if (_carritoCafe.isEmpty) return;
 
     try {
@@ -187,12 +201,16 @@ class OrderService {
         'total': total,
       });
 
+      final String detalleFinal = (observaciones != null && observaciones.trim().isNotEmpty)
+          ? 'Cafetería Origen Vivo | Obs: ${observaciones.trim()}'
+          : 'Cafetería Origen Vivo';
+
       // 2. Insertar los Detalles de cada producto del carrito
       for (final item in _carritoCafe) {
         await supabase.from('pedido_detalles').insert({
           'pedido_id': pedidoId,
           'nombre_producto': item['nombre'] as String,
-          'detalle_personalizacion': 'Cafetería Origen Vivo',
+          'detalle_personalizacion': detalleFinal,
           'cantidad': item['cantidad'] as int,
           'precio_unitario': item['precio'] as double,
         });
@@ -259,4 +277,268 @@ class OrderService {
       debugPrint('Error al eliminar pedido de la DB: $e');
     }
   }
+
+  // --- CRUD PRODUCTOS CAFETERÍA ---
+  Future<void> crearProductoCafe({
+    required String nombre,
+    required String categoria,
+    required String descripcion,
+    required double precio,
+    required String iconoName,
+  }) async {
+    await supabase.from('productos_cafe').insert({
+      'nombre': nombre,
+      'categoria': categoria,
+      'descripcion': descripcion,
+      'precio': precio,
+      'icono_name': iconoName,
+    });
+  }
+
+  Future<void> actualizarProductoCafe({
+    required int id,
+    required String nombre,
+    required String categoria,
+    required String descripcion,
+    required double precio,
+    required String iconoName,
+  }) async {
+    await supabase.from('productos_cafe').update({
+      'nombre': nombre,
+      'categoria': categoria,
+      'descripcion': descripcion,
+      'precio': precio,
+      'icono_name': iconoName,
+    }).eq('id', id);
+  }
+
+  Future<void> eliminarProductoCafe(int id) async {
+    await supabase.from('productos_cafe').delete().eq('id', id);
+  }
+
+  // --- CRUD PRODUCTOS SUBLIMABLES ---
+  Future<void> crearProductoSublimable({
+    required String nombre,
+    required String descripcion,
+    required String iconoName,
+  }) async {
+    await supabase.from('productos_sublimables').insert({
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'icono_name': iconoName,
+    });
+  }
+
+  Future<void> actualizarProductoSublimable({
+    required int id,
+    required String nombre,
+    required String descripcion,
+    required String iconoName,
+  }) async {
+    await supabase.from('productos_sublimables').update({
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'icono_name': iconoName,
+    }).eq('id', id);
+  }
+
+  Future<void> eliminarProductoSublimable(int id) async {
+    await supabase.from('productos_sublimables').delete().eq('id', id);
+  }
+
+  // --- CRUD DISEÑOS ---
+  Future<void> crearDiseno({
+    required String nombre,
+    required String descripcion,
+    required int coleccionId,
+    required String iconoName,
+  }) async {
+    await supabase.from('disenos').insert({
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'coleccion_id': coleccionId,
+      'icono_name': iconoName,
+    });
+  }
+
+  Future<void> actualizarDiseno({
+    required int id,
+    required String nombre,
+    required String descripcion,
+    required int coleccionId,
+    required String iconoName,
+  }) async {
+    await supabase.from('disenos').update({
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'coleccion_id': coleccionId,
+      'icono_name': iconoName,
+    }).eq('id', id);
+  }
+
+  Future<void> eliminarDiseno(int id) async {
+    await supabase.from('disenos').delete().eq('id', id);
+  }
+
+  // --- INICIALIZACIÓN DE DATOS PREDETERMINADOS ---
+  Future<void> inicializarDatosPredeterminados() async {
+    try {
+      final cols = await supabase.from('colecciones').select();
+      if (cols.isEmpty) {
+        final List<Map<String, dynamic>> coleccionesFicticias = [
+          {'nombre': 'Boyacá', 'descripcion': 'Diseños tradicionales del departamento de Boyacá'},
+          {'nombre': 'Café', 'descripcion': 'Diseños inspirados en la cultura cafetera'},
+          {'nombre': 'Amor', 'descripcion': 'Diseños románticos y afectuosos'},
+          {'nombre': 'Mascotas', 'descripcion': 'Diseños divertidos para amantes de las mascotas'},
+          {'nombre': 'Infantil', 'descripcion': 'Diseños infantiles y coloridos'},
+          {'nombre': 'Empresas', 'descripcion': 'Diseños corporativos y de marcas'},
+          {'nombre': 'Temporadas', 'descripcion': 'Diseños especiales de festividades'},
+        ];
+
+        final List<dynamic> insertedCols = await supabase
+            .from('colecciones')
+            .insert(coleccionesFicticias)
+            .select();
+
+        if (insertedCols.isNotEmpty) {
+          final List<Map<String, dynamic>> disenosIniciales = [];
+          for (final col in insertedCols) {
+            final colId = col['id'] as int;
+            final colNombre = col['nombre'] as String;
+
+            if (colNombre == 'Boyacá') {
+              disenosIniciales.addAll([
+                {
+                  'nombre': 'MÁS BOYACENSE QUE LA RUANA',
+                  'descripcion': 'Diseño tradicional campesino con ruana y sombrero',
+                  'coleccion_id': colId,
+                  'icono_name': 'landscape_outlined',
+                },
+                {
+                  'nombre': 'TUMBA EL MONTE',
+                  'descripcion': 'Ilustración del campo y la labranza boyacense',
+                  'coleccion_id': colId,
+                  'icono_name': 'landscape',
+                },
+              ]);
+            } else if (colNombre == 'Café') {
+              disenosIniciales.addAll([
+                {
+                  'nombre': 'AMO EL CAFÉ',
+                  'descripcion': 'Diseño minimalista con grano y taza de café caliente',
+                  'coleccion_id': colId,
+                  'icono_name': 'coffee',
+                },
+                {
+                  'nombre': 'ORIGEN ARTESANAL',
+                  'descripcion': 'Diseño de prensa francesa y granos tostados',
+                  'coleccion_id': colId,
+                  'icono_name': 'coffee_maker',
+                },
+              ]);
+            } else {
+              disenosIniciales.add({
+                'nombre': 'DISEÑO GENÉRICO DE ${colNombre.toUpperCase()}',
+                'descripcion': 'Estilo estético de la colección $colNombre',
+                'coleccion_id': colId,
+                'icono_name': 'checkroom',
+              });
+            }
+          }
+          await supabase.from('disenos').insert(disenosIniciales);
+        }
+      }
+
+      // Inicializar productos de cafetería por defecto
+      final cafeProds = await supabase.from('productos_cafe').select();
+      if (cafeProds.isEmpty) {
+        final List<Map<String, dynamic>> cafeIniciales = [
+          {
+            'nombre': 'Espresso Origen',
+            'categoria': 'Bebidas Calientes',
+            'descripcion': 'Café intenso elaborado con granos seleccionados',
+            'precio': 5000.0,
+            'icono_name': 'coffee',
+          },
+          {
+            'nombre': 'Cappuccino de la Casa',
+            'categoria': 'Bebidas Calientes',
+            'descripcion': 'Espresso con leche emulsionada y toque de canela',
+            'precio': 7500.0,
+            'icono_name': 'coffee_maker',
+          },
+          {
+            'nombre': 'Latte Vainilla',
+            'categoria': 'Bebidas Calientes',
+            'descripcion': 'Café suave con leche cremosa y esencia de vainilla',
+            'precio': 8000.0,
+            'icono_name': 'coffee',
+          },
+          {
+            'nombre': 'Cold Brew Frutos Rojos',
+            'categoria': 'Bebidas Frías',
+            'descripcion': 'Café extraído en frío por 12 horas con notas frutales',
+            'precio': 8500.0,
+            'icono_name': 'local_drink',
+          },
+          {
+            'nombre': 'Croissant de Almendras',
+            'categoria': 'Alimentos',
+            'descripcion': 'Hojaldre crujiente relleno de crema de almendras',
+            'precio': 6500.0,
+            'icono_name': 'bakery_dining',
+          },
+          {
+            'nombre': 'Muffin de Arándanos',
+            'categoria': 'Alimentos',
+            'descripcion': 'Esponjoso panecillo con arándanos frescos',
+            'precio': 5000.0,
+            'icono_name': 'cake',
+          },
+        ];
+        await supabase.from('productos_cafe').insert(cafeIniciales);
+      }
+
+      // Inicializar productos sublimables por defecto
+      final subProds = await supabase.from('productos_sublimables').select();
+      if (subProds.isEmpty) {
+        final List<Map<String, dynamic>> subIniciales = [
+          {
+            'nombre': 'Mugs 6 oz',
+            'descripcion': 'Taza pequeña de cerámica ideal para espresso',
+            'icono_name': 'local_cafe_outlined',
+          },
+          {
+            'nombre': 'Mugs 12 oz',
+            'descripcion': 'Taza estándar de cerámica para bebidas calientes',
+            'icono_name': 'local_cafe',
+          },
+          {
+            'nombre': 'Vaso térmico',
+            'descripcion': 'Vaso de acero térmico de viaje',
+            'icono_name': 'coffee_maker_outlined',
+          },
+          {
+            'nombre': 'Mágico',
+            'descripcion': 'Taza especial que cambia de color con calor',
+            'icono_name': 'opacity',
+          },
+          {
+            'nombre': 'Buso',
+            'descripcion': 'Buso o sudadera de algodón de alta calidad',
+            'icono_name': 'checkroom',
+          },
+          {
+            'nombre': 'Camiseta básica',
+            'descripcion': 'Camiseta de algodón básica y fresca',
+            'icono_name': 'dry_cleaning',
+          },
+        ];
+        await supabase.from('productos_sublimables').insert(subIniciales);
+      }
+    } catch (e) {
+      debugPrint('Error al inicializar datos predeterminados: $e');
+    }
+  }
 }
+

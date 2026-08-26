@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'screens/responsive_layout_selector.dart';
+import 'screens/session_gate.dart';
 import 'theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
-    url: 'https://wbecrnnlxhblleuucahq.supabase.co',
-    publishableKey: 'sb_publishable_Q09fRgBv1YVmAE3eYI9qlg_B6BfG-UT',
+    url: const String.fromEnvironment(
+      'SUPABASE_URL',
+      defaultValue: 'https://wbecrnnlxhblleuucahq.supabase.co',
+    ),
+    publishableKey: const String.fromEnvironment(
+      'SUPABASE_ANON_KEY',
+      defaultValue: 'sb_publishable_Q09fRgBv1YVmAE3eYI9qlg_B6BfG-UT',
+    ),
   );
 
   runApp(const MiApp());
@@ -23,7 +29,7 @@ class MiApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Origen Vivo',
       theme: OrigenVivoTheme.lightTheme,
-      home: const ResponsiveLayoutSelector(), 
+      home: const SessionGate(), 
     );
   }
 }

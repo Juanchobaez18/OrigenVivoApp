@@ -48,12 +48,10 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       currentStep = 1;
     } else if (actual.estado == 'En producción') {
       currentStep = 2;
-    } else if (actual.estado == 'Control de calidad') {
-      currentStep = 3;
     } else if (actual.estado == 'Listo para entrega') {
+      currentStep = 3;
+    } else if (actual.estado == 'Entregado' || actual.estado == 'Completado') {
       currentStep = 4;
-    } else if (actual.estado == 'Entregado') {
-      currentStep = 5;
     }
 
     return Scaffold(
@@ -122,42 +120,36 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            _buildTimelineStep(
+             _buildTimelineStep(
               0,
-              'Pedido Recibido',
-              'Hemos recibido tu pedido de sublimación y está en cola.',
+              'Pedido Creado',
+              'Se registra la solicitud realizada desde la aplicación.',
               currentStep >= 0,
               isFirst: true,
             ),
             _buildTimelineStep(
               1,
-              'Confirmado',
-              'Pago validado en caja y aprobado para producción.',
+              'Pedido Confirmado',
+              'Se verifica y confirma la información del pedido para iniciar su procesamiento (Caja/Administración).',
               currentStep >= 1,
             ),
             _buildTimelineStep(
               2,
               'En Producción',
-              'El taller de sublimación está estampando tu producto.',
+              'El área de producción fabrica el producto consultando el diseño y observaciones.',
               currentStep >= 2,
             ),
             _buildTimelineStep(
               3,
-              'Control de Calidad',
-              'Revisando acabados y detalles finales del estampado.',
+              'Listo para Entrega',
+              'Se finaliza la fabricación y el producto queda disponible para ser entregado.',
               currentStep >= 3,
             ),
             _buildTimelineStep(
               4,
-              'Listo para Entrega',
-              '¡Tu souvenir personalizado está listo! Pasa a recogerlo al counter.',
-              currentStep >= 4,
-            ),
-            _buildTimelineStep(
-              5,
               'Entregado',
-              'El producto fue entregado con éxito. ¡Gracias por tu compra!',
-              currentStep >= 5,
+              'Se entrega el producto al cliente y se finaliza el pedido.',
+              currentStep >= 4,
               isLast: true,
             ),
             const SizedBox(height: 32),

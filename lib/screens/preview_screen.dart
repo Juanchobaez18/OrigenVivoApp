@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'order_confirmation_screen.dart';
 
@@ -6,9 +7,21 @@ class PreviewScreen extends StatelessWidget {
   final String disenoSeleccionado;
   final String coleccion;
   final String textoPersonalizado;
+  final String? observacionesCliente;
   final Color colorTexto;
   final String fuenteTexto;
   final TextAlign alineacionTexto;
+
+  // --- PARÁMETROS DEL CANVAS ---
+  final String? customImageBase64;
+  final double textX;
+  final double textY;
+  final double textScale;
+  final double textRotation;
+  final double imageX;
+  final double imageY;
+  final double imageScale;
+  final double imageRotation;
 
   const PreviewScreen({
     super.key,
@@ -16,15 +29,35 @@ class PreviewScreen extends StatelessWidget {
     required this.disenoSeleccionado,
     required this.coleccion,
     required this.textoPersonalizado,
+    this.observacionesCliente,
     required this.colorTexto,
     required this.fuenteTexto,
     required this.alineacionTexto,
+    this.customImageBase64,
+    required this.textX,
+    required this.textY,
+    required this.textScale,
+    required this.textRotation,
+    required this.imageX,
+    required this.imageY,
+    required this.imageScale,
+    required this.imageRotation,
   });
+
+  ImageProvider? _obtenerImageProvider(String base64Str) {
+    try {
+      final base64String = base64Str.split(',').last;
+      return MemoryImage(base64Decode(base64String));
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     IconData productIcon = Icons.checkroom;
-    if (productoSeleccionado.toLowerCase().contains('mug') || productoSeleccionado.toLowerCase().contains('vaso') || productoSeleccionado.toLowerCase().contains('termico')) {
+    final String prodLower = productoSeleccionado.toLowerCase();
+    if (prodLower.contains('mug') || prodLower.contains('taza') || prodLower.contains('vaso')) {
       productIcon = Icons.local_cafe;
     }
 
@@ -64,127 +97,107 @@ class PreviewScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // SIMULADOR DE MOCKUP VISUAL PREMIUM
-            Container(
-              height: 300,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2E2D2C), Color(0xFF1E1C1A)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0xFF3E3D3C), width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+            // SIMULADOR DE MOCKUP VISUAL PREMIUM (LIENZO ESTATICO DE COORDENADAS)
+            Center(
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2E2D2C), Color(0xFF1E1C1A)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Positioned(
-                    top: 20,
-                    bottom: 20,
-                    child: Opacity(
-                      opacity: 0.15,
-                      child: Icon(
-                        productIcon,
-                        size: 200,
-                        color: const Color(0xFFA26334),
-                      ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: const Color(0xFF3E3D3C), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3E3D3C),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFA26334).withValues(alpha: 0.3)),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.image_outlined,
-                                color: Color(0xFFA26334),
-                                size: 36,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                disenoSeleccionado.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 1.1,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              Text(
-                                'COLECCIÓN: $coleccion',
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  color: Color(0xFFB7B7B6),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(26),
+                  child: Stack(
+                    children: [
+                      // Silueta base
+                      Center(
+                        child: Opacity(
+                          opacity: 0.1,
+                          child: Icon(
+                            productIcon,
+                            size: 180,
+                            color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        if (textoPersonalizado.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E1C1A).withValues(alpha: 0.8),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              textoPersonalizado,
-                              textAlign: alineacionTexto,
-                              style: TextStyle(
-                                color: colorTexto,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.underline,
-                                decorationColor: colorTexto.withValues(alpha: 0.4),
+                      ),
+
+                      // Imagen personalizada
+                      if (customImageBase64 != null)
+                        Positioned(
+                          left: imageX,
+                          top: imageY,
+                          child: Transform.rotate(
+                            angle: imageRotation,
+                            child: Transform.scale(
+                              scale: imageScale,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                child: Image(
+                                  image: _obtenerImageProvider(customImageBase64!)!,
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
-                          )
-                        else
-                          Text(
-                            '[Sin Texto Adicional]',
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 13,
-                              fontStyle: FontStyle.italic,
+                          ),
+                        ),
+
+                      // Texto personalizado
+                      Positioned(
+                        left: textX,
+                        top: textY,
+                        child: Transform.rotate(
+                          angle: textRotation,
+                          child: Transform.scale(
+                            scale: textScale,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              child: Text(
+                                textoPersonalizado.isEmpty ? 'Mi Texto' : textoPersonalizado,
+                                style: TextStyle(
+                                  color: colorTexto,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: fuenteTexto,
+                                ),
+                              ),
                             ),
                           ),
-                      ],
-                    ),
-                  ),
-                  const Positioned(
-                    bottom: 12,
-                    child: Text(
-                      '• MOCKUP DE PREVISUALIZACIÓN •',
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: Color(0xFFB7B7B6),
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
+                        ),
                       ),
-                    ),
+
+                      const Positioned(
+                        bottom: 12,
+                        left: 0,
+                        right: 0,
+                        child: Text(
+                          '• VISTA PREVIA DE PRODUCCIÓN •',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: Color(0xFFB7B7B6),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
             const SizedBox(height: 32),
@@ -201,11 +214,23 @@ class PreviewScreen extends StatelessWidget {
                 children: [
                   _buildDetailRow('Producto Base:', productoSeleccionado),
                   const Divider(height: 20, color: Color(0xFF3E3D3C)),
-                  _buildDetailRow('Diseño de Estampa:', disenoSeleccionado),
+                  _buildDetailRow('Diseño Estampa:', disenoSeleccionado),
+                  const Divider(height: 20, color: Color(0xFF3E3D3C)),
+                  _buildDetailRow(
+                    'Imagen Propia:',
+                    customImageBase64 != null ? 'Cargada (.png / .jpg)' : 'Ninguna',
+                  ),
                   const Divider(height: 20, color: Color(0xFF3E3D3C)),
                   _buildDetailRow(
                     'Texto Grabado:',
                     textoPersonalizado.isEmpty ? 'Ninguno' : '"$textoPersonalizado"',
+                  ),
+                  const Divider(height: 20, color: Color(0xFF3E3D3C)),
+                  _buildDetailRow(
+                    'Observaciones:',
+                    observacionesCliente == null || observacionesCliente!.trim().isEmpty
+                        ? 'Ninguna'
+                        : observacionesCliente!.trim(),
                   ),
                 ],
               ),
@@ -222,9 +247,19 @@ class PreviewScreen extends StatelessWidget {
                       disenoSeleccionado: disenoSeleccionado,
                       coleccion: coleccion,
                       textoPersonalizado: textoPersonalizado,
+                      observacionesCliente: observacionesCliente,
                       colorTexto: colorTexto,
                       fuenteTexto: fuenteTexto,
                       alineacionTexto: alineacionTexto,
+                      customImageBase64: customImageBase64,
+                      textX: textX,
+                      textY: textY,
+                      textScale: textScale,
+                      textRotation: textRotation,
+                      imageX: imageX,
+                      imageY: imageY,
+                      imageScale: imageScale,
+                      imageRotation: imageRotation,
                     ),
                   ),
                 );
