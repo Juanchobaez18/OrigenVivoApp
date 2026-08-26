@@ -25,9 +25,26 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     }
 
-    if (password.length < 6) {
+    // Mínimo 8 caracteres
+    if (password.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres')),
+        const SnackBar(content: Text('La contraseña debe tener al menos 8 caracteres')),
+      );
+      return;
+    }
+
+    // Al menos una mayúscula
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La contraseña debe tener al menos una letra mayúscula')),
+      );
+      return;
+    }
+
+    // Al menos un número
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La contraseña debe contener al menos un número')),
       );
       return;
     }

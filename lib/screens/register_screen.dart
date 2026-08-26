@@ -30,7 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    // 2. Validación: Verificar que ningún campo esté vacío
+    // Validación: campos vacíos
     if (nombre.isEmpty || telefono.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor, completa todos los campos')),
@@ -38,15 +38,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // 3. Validación: La contraseña debe tener como mínimo 6 caracteres (requisito de Supabase)
-    if (password.length < 6) {
+    // Validación: formato de correo electrónico
+    final emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.]+$');
+    if (!emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres')),
+        const SnackBar(content: Text('Ingresa un correo electrónico válido')),
       );
       return;
     }
 
-    // Nueva Validación: Contraseñas coinciden
+    // Validación: mínimo 8 caracteres
+    if (password.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La contraseña debe tener al menos 8 caracteres')),
+      );
+      return;
+    }
+
+    // Validación: al menos una letra mayúscula
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La contraseña debe tener al menos una letra mayúscula')),
+      );
+      return;
+    }
+
+    // Validación: al menos un número
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La contraseña debe contener al menos un número')),
+      );
+      return;
+    }
+
+    // Validación: contraseñas coinciden
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Las contraseñas no coinciden')),

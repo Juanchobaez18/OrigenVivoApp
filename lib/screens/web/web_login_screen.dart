@@ -85,6 +85,16 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
       return;
     }
 
+    // Validación de formato de correo
+    final emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.]+$');
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingresa un correo electrónico válido')),
+      );
+      return;
+    }
+
+
     setState(() => _cargando = true);
 
     try {
